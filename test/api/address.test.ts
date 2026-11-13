@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherAuthHeader: { Authorization: string, 'content-type': string }
 let addressId: string
 
 before(
@@ -25,6 +26,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const { token: otherToken } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    otherAuthHeader = {
+      Authorization: 'Bearer ' + otherToken,
       'content-type': 'application/json'
     }
   },
@@ -152,6 +162,34 @@ void describe('/api/Addresss/:id', () => {
       .send({ fullName: 'Jimy' })
     assert.equal(res.status, 200)
     assert.equal(res.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT cannot update another users address', async () => {
+    const createRes = await request(app).post('/api/Addresss').set(otherAuthHeader).send({
+      fullName: 'Bender',
+      mobileNum: '797675345',
+      zipCode: '10001',
+      streetAddress: 'Robot Arms Apts 42',
+      city: 'New New York',
+      state: 'New New York',
+      country: 'Planet Earth'
+    })
+    assert.equal(createRes.status, 201)
+
+    const otherAddressId = createRes.body.data.id
+    const updateRes = await request(app)
+      .put('/api/Addresss/' + otherAddressId)
+      .set(authHeader)
+      .send({ fullName: 'Stolen Address' })
+    assert.equal(updateRes.status, 400)
+    assert.equal(updateRes.body.status, 'error')
+    assert.equal(updateRes.body.data, 'Malicious activity detected.')
+
+    const getRes = await request(app)
+      .get('/api/Addresss/' + otherAddressId)
+      .set(otherAuthHeader)
+    assert.equal(getRes.status, 200)
+    assert.equal(getRes.body.data.fullName, 'Bender')
   })
 
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
